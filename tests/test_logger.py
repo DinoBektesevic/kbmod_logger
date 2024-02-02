@@ -10,8 +10,7 @@ def test_cpp_logging():
 
 
 if __name__ == "__main__":
-    kbmod_logger.run()
-    #test_python_logging()
+    test_python_logging()
     print()
-    #test_cpp_logging()
+    test_cpp_logging()
     #pytest.main()

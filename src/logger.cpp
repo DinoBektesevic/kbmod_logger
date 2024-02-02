@@ -14,12 +14,11 @@ class Handler {
 public:
   std::string name;
   virtual void debug(std::string msg) = 0;
-  /* void info(std::string msg);
-     void warning(std::string msg);
-  void error(std::string msg);
-  void critical(std::string msg);*/
+  virtual void info(std::string msg) = 0;
+  virtual void warning(std::string msg) = 0;
+  virtual void error(std::string msg) = 0;
+  virtual void critical(std::string msg) = 0;
 };
-
 
 
 class PyLoggingHandler : public Handler {
@@ -30,29 +29,29 @@ public:
   std::string name_;
 
   PyLoggingHandler(py::handle handle) :
-    name_(handle.attr("name").cast<std::string>()), handler_(handle)
+    name_(handle.attr("name").cast<std::string>()),
+    handler_(handle)
   {}
 
-   virtual void debug(std::string msg){
-     handler_.attr("debug")(msg).cast<std::string>();
+  virtual void debug(std::string msg){
+    handler_.attr("debug")(msg);
   }
 
-  /*
-   void info(std::string msg){
-     handler_.attr("info")(msg).cast<std::string>();
+  virtual void info(std::string msg){
+    handler_.attr("info")(msg);
   }
 
-   void warning(std::string msg){
-     handler_.attr("warning")(msg).cast<std::string>();
-     }
-
-   void error(std::string msg){
-     handler_.attr("error")(msg).cast<std::string>();
+  virtual void warning(std::string msg){
+    handler_.attr("warning")(msg);
   }
 
-   void critical(std::string msg){
-     handler_.attr("critical")(msg).cast<std::string>();
-     }*/
+  virtual void error(std::string msg){
+    handler_.attr("error")(msg);
+  }
+
+  virtual void critical(std::string msg){
+    handler_.attr("critical")(msg);
+  }
 };
 
 
@@ -75,22 +74,22 @@ public:
   virtual void debug(std::string msg){
     std::cout << "[" << fmt_time() << " DEBUG] " << msg << std::endl;
   }
-  /*
-   void info(std::string msg){
+
+  virtual void info(std::string msg){
     std::cout << "[" << fmt_time() << " INFO] " << msg  << std::endl;;
   }
 
-   void warning(std::string msg){
+  virtual void warning(std::string msg){
     std::cout << "[" << fmt_time() << " WARNING] " << msg  << std::endl;;
-    }
+  }
 
-   void error(std::string msg){
+  virtual void error(std::string msg){
     std::cout << "[" << fmt_time() << " ERROR] " << msg  << std::endl;;
   }
 
-   void critical(std::string msg){
+  virtual void critical(std::string msg){
     std::cout << "[" << fmt_time() << " CRITICAL] " << msg  << std::endl;;
-    }*/
+  }
 };
 
 
@@ -102,55 +101,83 @@ public:
   Logger(Handler *handler): handler_(handler) {}
   auto get_name() { return handler_ -> name; }
   virtual void debug(std::string msg){ handler_ -> debug(msg); }
-  /* auto info(std::string msg){ handler_->info(msg); }
-  auto warning(std::string msg){ handler_->warning(msg); }
-  auto error(std::string msg){ handler_->error(msg); }
-  auto critical(std::string msg){ handler_->critical(msg); }*/
+  virtual void info(std::string msg){ handler_->info(msg); }
+  virtual void warning(std::string msg){ handler_->warning(msg); }
+  virtual void error(std::string msg){ handler_->error(msg); }
+  virtual void critical(std::string msg){ handler_->critical(msg); }
 };
 
 class Logging{
 private:
+
   std::map<std::string, Logger*> registry;
   std::ostream& handler_ = std::cout;
-  int set=0;
+  static Logging* instance;
 
   // make this a singleton
   Logging(){}
+  ~Logging(){}
 
 public:
-  static Logging& logger(){
-    static Logging instance;
+  // prevent copy and assignment ops
+  Logging(Logging &other) = delete;
+  void operator=(const Logging &) = delete;
+
+  // get the singleton instance
+  static Logging* logger(){
+    if(instance == nullptr){
+      instance = new Logging();
+    }
+    std::cout << "instance: " << instance << std::endl;
     return instance;
   }
 
+  Logging* GetInstance();
+
   auto register_logger(py::handle handler){
     std::string name = handler.attr("name").cast<std::string>();
-    registry[name] = new Logger(new PyLoggingHandler(handler));
-    return registry[name];
+    instance->registry[name] = new Logger(new PyLoggingHandler(handler));
+    return instance->registry[name];
   }
 
   auto register_logger(std::string name){
-    registry[name] = new Logger(new CoutHandler(name));
-    return registry[name];
+    std::cout << "Registering C++ Logger: " << name << std::endl;
+    instance->registry[name] = new Logger(new CoutHandler(name));
+    return instance->registry[name];
   }
 
   Logger* getLogger(std::string name){
     // if key not found
-    if (registry.find("f") == registry.end()) {
-      register_logger(name);
+    if (instance->registry.find(name) == instance->registry.end()) {
+      std::cout << "Logger: " << name << " not found." << std::endl;
+      instance->register_logger(name);
     }
-    return registry[name];
+    return instance->registry[name];
   }
 };
 
+
+Logging* Logging::instance= nullptr;;
+
+Logging *Logging::GetInstance()
+{
+  if(instance==nullptr){
+    instance = new Logging();
+  }
+  return instance;
+}
+
+
+
 namespace core {
   void run(){
-    auto logger = Logging::logger().getLogger("test");
-    logger->debug("Test debug in-C++ logger called from Python.");
-    //logger->info("Test info in-C++ logger called from Python.");
-    //logger->warning("Test warning in-C++ called logger from Python.");
-    //logger->error("Test error in-C++ logger called from Python.");
-    //logger->critical("Test critical in-C++ logger called from Python.");
+    auto logger = Logging::logger() -> getLogger("test");
+    logger->debug("Test debug in-C++ logger from C++.");
+    logger->info("Test info in-C++ logger from C++.");
+    logger->warning("Test warning in-C++ from C++.");
+    logger->error("Test error in-C++ from C++.");
+    logger->critical("Test critical in-C++ from C++");
+
   }
 }
 #endif // KBMOD_LOGGER

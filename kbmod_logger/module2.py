@@ -6,8 +6,16 @@ __all__ = ["run", ]
 
 
 logger = logging.getLogger(__name__)
-cpplogger = kbmod_logger.Logging()
-cpplogger.set_logger(logger)
+test = kbmod_logger.Logging.logger().register_logger(logger)
+cpplogger = kbmod_logger.Logging.logger().getLogger(__name__)
+
+#test.debug("test")
+
+breakpoint()
+a = 1
+
+#cpplogger = kbmod_logger.Logging()
+#cpplogger.set_logger(logger)
 
 
 def run():
