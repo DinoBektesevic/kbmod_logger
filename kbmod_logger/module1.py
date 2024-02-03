@@ -6,14 +6,8 @@ __all__ = ["run", ]
 
 
 logger = logging.getLogger(__name__)
-breakpoint()
-kbmod_logger.Logging.logger().register_logger(logger)
-#cpplogger = kbmod_logger.Logging.logger().getLogger(__name__)
-#breakpoint()
-#cpplogger = kbmod_logger.logging()
-#cpplogger = kbmod_logger.Logging(logger)
-#cpplogger.set_logger(logger)
-
+cpplogger = kbmod_logger.Logging.getLogger(__name__)
+logger.setLevel(logging.CRITICAL)
 
 def run():
     print()

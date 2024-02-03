@@ -1,18 +1,29 @@
 #ifndef KBMOD_LOGGER
 #define KBMOD_LOGGER
 
-
 #include <iostream>
-#include<map>
+#include <map>
 #include <string>
+#include <vector>
 
 #include <pybind11/pybind11.h>
 namespace py = pybind11;
 
 
+typedef std::unordered_map<std::string, std::string> dict;
+
+
 class Handler {
 public:
   std::string name;
+  dict config;
+
+  Handler(std::string logger_name) : name(logger_name), config() {}
+  Handler(std::string logger_name, dict conf) :
+    name(logger_name),
+    config(conf)
+  {}
+
   virtual void debug(std::string msg) = 0;
   virtual void info(std::string msg) = 0;
   virtual void warning(std::string msg) = 0;
@@ -23,72 +34,77 @@ public:
 
 class PyLoggingHandler : public Handler {
 private:
-  py::handle handler_;
+  py::handle pylogger;
 
 public:
-  std::string name_;
-
-  PyLoggingHandler(py::handle handle) :
-    name_(handle.attr("name").cast<std::string>()),
-    handler_(handle)
+  // it would not be possible for this handler to require a configuration, it's
+  // just a pointer to the Python's logging singleton
+  PyLoggingHandler(py::handle logger) :
+    Handler(logger.attr("name").cast<std::string>()),
+    pylogger(logger)
   {}
 
   virtual void debug(std::string msg){
-    handler_.attr("debug")(msg);
+    pylogger.attr("debug")(msg);
   }
 
   virtual void info(std::string msg){
-    handler_.attr("info")(msg);
+    pylogger.attr("info")(msg);
   }
 
   virtual void warning(std::string msg){
-    handler_.attr("warning")(msg);
+    pylogger.attr("warning")(msg);
   }
 
   virtual void error(std::string msg){
-    handler_.attr("error")(msg);
+    pylogger.attr("error")(msg);
   }
 
   virtual void critical(std::string msg){
-    handler_.attr("critical")(msg);
+    pylogger.attr("critical")(msg);
   }
 };
 
 
 class CoutHandler : public Handler{
 private:
-  // helper methods
-  std::string fmt_time() const{
+  // changing datefmt may require changing the size of char buf array. 2x sounds
+  // safe enough (note %Y-%m expands to YYYY-MM etc) but I guess this could
+  // overflow with abuse?
+  std::string fmt_time(){
     time_t now;
     time(&now);
-    char buf[sizeof "YYYY-MM-DDTHH:MM:SSZ"] = {0};
-    strftime(buf, sizeof buf, "%FT%TZ", gmtime(&now));
+    std::string val = config["datefmt"];
+    int len = sizeof(config["datefmt"]);
+    char buf[2*len] = {0};
+    strftime(buf, sizeof buf, config["datefmt"].c_str(), gmtime(&now));
     return std::string(buf);
   }
 
 public:
-  std::string name_;
+  CoutHandler(std::string name, dict config) :
+    Handler(name, config)
+  {}
 
-  CoutHandler(std::string name) : name_(name) {}
-
+  // too lazy to resolve the Python-like log format string, todo some other time
   virtual void debug(std::string msg){
-    std::cout << "[" << fmt_time() << " DEBUG] " << msg << std::endl;
+    std::cout << "[" << fmt_time() << " DEBUG " << name << "] " << msg << std::endl;
   }
 
   virtual void info(std::string msg){
-    std::cout << "[" << fmt_time() << " INFO] " << msg  << std::endl;;
+    std::cout << "[" << fmt_time() << " INFO " << name << "] " << msg  << std::endl;;
   }
 
   virtual void warning(std::string msg){
-    std::cout << "[" << fmt_time() << " WARNING] " << msg  << std::endl;;
+    std::cout << "[" << fmt_time() << " WARNING " << name << "] " << msg  << std::endl;;
   }
 
   virtual void error(std::string msg){
-    std::cout << "[" << fmt_time() << " ERROR] " << msg  << std::endl;;
+    std::cout << "[" << fmt_time() << " ERROR " << name << "] " << msg  << std::endl;;
   }
 
   virtual void critical(std::string msg){
-    std::cout << "[" << fmt_time() << " CRITICAL] " << msg  << std::endl;;
+    std::cout << "[" << fmt_time() << " CRITICAL " << name << "] " << msg  << std::endl;;
   }
 };
 
@@ -107,9 +123,12 @@ public:
   virtual void critical(std::string msg){ handler_->critical(msg); }
 };
 
+
 class Logging{
 private:
 
+  // could use a format, see todo above
+  static dict default_config;
   std::map<std::string, Logger*> registry;
   std::ostream& handler_ = std::cout;
   static Logging* instance;
@@ -128,50 +147,52 @@ public:
     if(instance == nullptr){
       instance = new Logging();
     }
-    std::cout << "instance: " << instance << std::endl;
     return instance;
   }
 
-  Logging* GetInstance();
+  static void setConfig(dict config){
+    default_config = config;
+  }
 
-  auto register_logger(py::handle handler){
+  // The most general C++ use-case
+  template<class LogHandler>
+  auto register_logger(std::string name, dict config) {
+    instance->registry[name] = new Logger(new LogHandler(name, config));
+    return instance->registry[name];
+  }
+
+  Logger* getLogger(std::string name, dict config={}){
+    // if key not found use default setup
+    if (instance->registry.find(name) == instance->registry.end()) {
+      dict tmpconf = config.size() != 0 ? config : instance->default_config;
+      instance->register_logger<CoutHandler>(name, tmpconf);
+    }
+    return instance->registry[name];
+  }
+
+  // PyLoggingHandler gets its config straight from Python and requires a handle
+  // so it's a special case
+  auto register_pylogger(py::handle handler){
     std::string name = handler.attr("name").cast<std::string>();
     instance->registry[name] = new Logger(new PyLoggingHandler(handler));
     return instance->registry[name];
   }
 
-  auto register_logger(std::string name){
-    std::cout << "Registering C++ Logger: " << name << std::endl;
-    instance->registry[name] = new Logger(new CoutHandler(name));
-    return instance->registry[name];
-  }
 
-  Logger* getLogger(std::string name){
-    // if key not found
-    if (instance->registry.find(name) == instance->registry.end()) {
-      std::cout << "Logger: " << name << " not found." << std::endl;
-      instance->register_logger(name);
-    }
-    return instance->registry[name];
-  }
+
 };
 
-
-Logging* Logging::instance= nullptr;;
-
-Logging *Logging::GetInstance()
-{
-  if(instance==nullptr){
-    instance = new Logging();
-  }
-  return instance;
-}
+Logging* Logging::instance = nullptr;
+dict Logging::default_config = {
+  {"level", "WARNING"},
+  {"datefmt", "'%Y-%m-%dT%H:%M:%SZ"}
+};
 
 
 
 namespace core {
   void run(){
-    auto logger = Logging::logger() -> getLogger("test");
+    auto logger = Logging::logger() -> getLogger("cpp.logger");
     logger->debug("Test debug in-C++ logger from C++.");
     logger->info("Test info in-C++ logger from C++.");
     logger->warning("Test warning in-C++ from C++.");
