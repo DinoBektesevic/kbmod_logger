@@ -24,5 +24,3 @@ def run():
     cpplogger.warning("Test warning C++ logger obj from Python.")
     cpplogger.error("Test error C++ logger obj from Python.")
     cpplogger.critical("Test critical C++ logger obj from Python.")
-    print()
-    kbmod_logger.run()

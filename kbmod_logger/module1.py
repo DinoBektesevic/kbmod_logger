@@ -6,8 +6,8 @@ __all__ = ["run", ]
 
 
 logger = logging.getLogger(__name__)
-cpplogger = kbmod_logger.Logging.getLogger(__name__)
 logger.setLevel(logging.CRITICAL)
+cpplogger = kbmod_logger.Logging.getLogger(__name__)
 
 def run():
     print()
@@ -19,10 +19,6 @@ def run():
     logger.error("Test error Python logger from Python.")
     logger.critical("Test critical Python logger from Python.")
     print()
-    cpplogger.debug("Test debug C++ logger obj from Python.")
-    cpplogger.info("Test info C++ logger obj from Python.")
-    cpplogger.warning("Test warning C++ logger obj from Python.")
-    cpplogger.error("Test error C++ logger obj from Python.")
-    cpplogger.critical("Test critical C++ logger obj from Python.")
+    kbmod_logger.run_hook()
     print()
-    kbmod_logger.run()
+    kbmod_logger.run_pure()
