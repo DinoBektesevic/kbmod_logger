@@ -2,39 +2,17 @@
 #define KBMOD_LOGGER_BINDINGS
 
 #include <pybind11/pybind11.h>
-#include "logger.cpp"
-
+#include <pybind11/stl.h>
+#include <string>
 
 namespace py = pybind11;
 
+#include "logging.h"
 
 PYBIND11_MODULE(logger, m) {
-  m.doc() = R"pbdoc(
-        KBMOD Logger
-        ------------
-
-        .. currentmodule:: kbmod_logger
-
-        .. autosummary::
-           :toctree: _generate
-
-           add
-           subtract
-    )pbdoc";
-
-  py::class_<Logging, std::unique_ptr<Logging, py::nodelete>>(m, "Logging")
-    .def(py::init([](){
-      return std::unique_ptr<Logging, py::nodelete>(&Logging::logger());
-    }))
-    .def("set_logger", &Logging::set_logger)
-    .def("debug", &Logging::debug)
-    .def("info", &Logging::info)
-    .def("warning", &Logging::warning)
-    .def("error", &Logging::error)
-    .def("critical", &Logging::critical);
-
-
-  m.def("run", &core::run);
+  logging::logging_bindings(m);
+  m.def("run_pure", &core::run_pure);
+  m.def("run_hook", &core::run_hook);
 }
 
 
