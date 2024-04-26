@@ -12,6 +12,8 @@ cpplogger = kbmod_logger.Logging.getLogger(__name__)
 def run():
     print()
     print("       MODULE 2    ")
+    print("Expectation is that they will all print everything and ")
+    print("that the module of origin will be kbmod_logger.module2.")
     print()
     logger.debug("Test debug Python logger from Python.")
     logger.info("Test info Python logger from Python.")
